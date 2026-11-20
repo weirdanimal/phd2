@@ -335,7 +335,24 @@ too large can result in no stars being selected. &nbsp;It can be used
 of a faint star that you know from experience will prove to be
 unusable. &nbsp;However, many of these situations can be avoided by
 getting better guide camera focus, refreshing the dark library, or
-slightly increasing the exposure times.</li><li>'<a name="Multi-Star_Option"></a>Use multiple stars' - determines whether PHD2 will use more than one star for guiding. &nbsp;See&nbsp;<a href="Basic_use.htm#Multi-star_guiding"></a><a href="Basic_use.htm#Multi-star_Guiding">Multi-star Guiding</a> for details.</li><li>'Auto-selection frame downsample' - can
+slightly increasing the exposure times.</li><li>'<a name="Reject_elongated_stars"></a>Reject
+elongated stars in AutoFind' and 'Max eccentricity': when checked, the
+auto-select function skips candidates that are too elongated to be
+stars, such as galaxies or other extended objects that PHD2 might
+otherwise choose as a guide star. &nbsp;Eccentricity describes how
+stretched a candidate is: 0 is perfectly round, 0.5 is about 1.15 times
+longer than wide, 0.8 about 1.7 times and 0.9 about 2.3 times.
+&nbsp;Candidates with an eccentricity above the 'Max eccentricity' value
+(default 0.80) are not selected, either as the primary guide star or as
+secondary stars in multi-star guiding. &nbsp;If every candidate is too
+elongated, auto-select reports that no star was found rather than
+choosing one of them. &nbsp;This setting only affects star selection;
+guiding on a star that has already been selected is not affected.
+&nbsp;The eccentricity of each candidate is written to the debug log,
+which you can use to choose a value: set it below the value reported
+for the object you want to avoid but above the values reported for
+real stars. &nbsp;If real stars are being rejected because of trailing,
+poor focus or optical aberrations, increase the value.</li><li>'<a name="Multi-Star_Option"></a>Use multiple stars' - determines whether PHD2 will use more than one star for guiding. &nbsp;See&nbsp;<a href="Basic_use.htm#Multi-star_guiding"></a><a href="Basic_use.htm#Multi-star_Guiding">Multi-star Guiding</a> for details.</li><li>'Auto-selection frame downsample' - can
 be used in unusual situations where PHD2 guide star auto-selection is
 not recognizing misshapen stars. &nbsp;If this happens, you can try
 values greater than 1 to improve the chances of recognizing such stars.

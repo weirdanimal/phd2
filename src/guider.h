@@ -165,6 +165,8 @@ class Guider : public wxWindow
     bool m_measurementMode;
     double m_minStarHFD;
     double m_minAFStarSNR;
+    bool m_maxAFStarEccentricityEnabled;
+    double m_maxAFStarEccentricity;
     double m_maxStarHFD;
     bool m_userMultiStarMode;
     unsigned int m_autoSelDownsample; // downsample factor for star auto-selection, 0=Auto
@@ -277,6 +279,14 @@ public:
     // populating a multi-star list. Normal 'find' methods do not use this property
     void SetAFMinStarSNR(double val);
     double GetAFMinStarSNR() const;
+    // optional rejection of elongated candidates during Auto-Find only; guide frames are not affected
+    void SetAFMaxStarEccentricityEnabled(bool enable);
+    bool GetAFMaxStarEccentricityEnabled() const;
+    void SetAFMaxStarEccentricity(double val);
+    double GetAFMaxStarEccentricity() const;
+    static double GetAFMaxStarEccentricityMin() { return 0.5; }
+    static double GetAFMaxStarEccentricityMax() { return 0.95; }
+    static double GetAFMaxStarEccentricityDefault() { return 0.8; }
 
     void SetAutoSelDownsample(unsigned int val);
     unsigned int GetAutoSelDownsample() const;
@@ -433,6 +443,16 @@ inline double Guider::GetMinStarHFDDefault() const
 inline double Guider::GetAFMinStarSNR() const
 {
     return m_minAFStarSNR;
+}
+
+inline bool Guider::GetAFMaxStarEccentricityEnabled() const
+{
+    return m_maxAFStarEccentricityEnabled;
+}
+
+inline double Guider::GetAFMaxStarEccentricity() const
+{
+    return m_maxAFStarEccentricity;
 }
 
 inline double Guider::GetMaxStarHFD() const

@@ -237,6 +237,9 @@ void Guider::LoadProfileSettings()
     double minSNR = pConfig->Profile.GetDouble("/guider/StarMinSNR", 6.0);
     SetAFMinStarSNR(minSNR);
 
+    SetAFMaxStarEccentricityEnabled(pConfig->Profile.GetBoolean("/guider/StarMaxEccentricityEnabled", false));
+    SetAFMaxStarEccentricity(pConfig->Profile.GetDouble("/guider/StarMaxEccentricity", GetAFMaxStarEccentricityDefault()));
+
     unsigned int autoSelDownsample = wxMax(0, pConfig->Profile.GetInt("/guider/AutoSelDownsample", 0));
     SetAutoSelDownsample(autoSelDownsample);
 
@@ -1844,6 +1847,22 @@ void Guider::SetAFMinStarSNR(double val)
     Debug.Write(wxString::Format("Setting StarMinSNR = %0.1f\n", val));
     pConfig->Profile.SetDouble("/guider/StarMinSNR", val);
     m_minAFStarSNR = val;
+}
+
+// Optional rejection of elongated stars during auto-find; normal star tracking does not use it
+void Guider::SetAFMaxStarEccentricityEnabled(bool enable)
+{
+    Debug.Write(wxString::Format("Setting StarMaxEccentricityEnabled = %d\n", enable));
+    pConfig->Profile.SetBoolean("/guider/StarMaxEccentricityEnabled", enable);
+    m_maxAFStarEccentricityEnabled = enable;
+}
+
+void Guider::SetAFMaxStarEccentricity(double val)
+{
+    val = wxMin(wxMax(val, GetAFMaxStarEccentricityMin()), GetAFMaxStarEccentricityMax());
+    Debug.Write(wxString::Format("Setting StarMaxEccentricity = %.2f\n", val));
+    pConfig->Profile.SetDouble("/guider/StarMaxEccentricity", val);
+    m_maxAFStarEccentricity = val;
 }
 
 // Maximum star HFD

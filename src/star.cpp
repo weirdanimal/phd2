@@ -36,6 +36,7 @@
  */
 
 #include "phd.h"
+#include "star_shape.h"
 #include <algorithm>
 
 Star::Star()
@@ -1032,6 +1033,35 @@ bool GuideStar::AutoFind(const usImage& image, int extraEdgeAllowance, int searc
     // Before sifting for the best star, collect all the viable candidates
     double minSNR = pFrame->pGuider->GetAFMinStarSNR();
     double maxHFD = pFrame->pGuider->GetMaxStarHFD();
+
+    // optionally reject elongated candidates (galaxies, other extended objects)
+    // Each candidate's eccentricity is measured once and logged even when the filter is off,
+    // so users can see the values before choosing a limit.
+    bool eccFilter = pFrame->pGuider->GetAFMaxStarEccentricityEnabled();
+    double maxEcc = pFrame->pGuider->GetAFMaxStarEccentricity();
+    if (eccFilter)
+        Debug.Write(wxString::Format("AutoFind: rejecting candidates with eccentricity > %.2f\n", maxEcc));
+    std::map<std::pair<int, int>, double> eccByPeak;
+    auto tooElongated = [&](const Star& star, const Peak& peak)
+    {
+        double ecc;
+        auto known = eccByPeak.find(std::make_pair(peak.x, peak.y));
+        if (known != eccByPeak.end())
+            ecc = known->second;
+        else
+        {
+            ecc =
+                StarShape::MeasureEccentricity(image.ImageData, image.Size.GetWidth(), image.Size.GetHeight(), star.X, star.Y);
+            eccByPeak[std::make_pair(peak.x, peak.y)] = ecc;
+            Debug.Write(wxString::Format("AutoFind: candidate [%d, %d] %.1f Ecc %.2f HFD %.1f SNR %.1f\n", peak.x, peak.y,
+                                         peak.val, ecc, star.HFD, star.SNR));
+        }
+        if (!eccFilter || ecc <= maxEcc)
+            return false;
+        Debug.Write(wxString::Format("AutoFind: too elongated [%d, %d] Ecc %.2f\n", peak.x, peak.y, ecc));
+        return true;
+    };
+
     foundStars.clear();
     if (maxStars > 1)
     {
@@ -1041,7 +1071,7 @@ bool GuideStar::AutoFind(const usImage& image, int extraEdgeAllowance, int searc
             tmp.Find(&image, searchRegion, it->x, it->y, FIND_CENTROID, pFrame->pGuider->GetMinStarHFD(), maxHFD,
                      pCamera->GetSaturationADU(), FIND_LOGGING_VERBOSE);
             // We're repeating the find, so we're vulnerable to hot pixels and creation of unwanted duplicates
-            if (tmp.WasFound() && tmp.SNR >= minSNR)
+            if (tmp.WasFound() && tmp.SNR >= minSNR && !tooElongated(tmp, *it))
             {
                 bool duplicate = std::find_if(foundStars.begin(), foundStars.end(), [&tmp](const GuideStar& other)
                                               { return CloseToReference(tmp, other); }) != foundStars.end();
@@ -1061,6 +1091,7 @@ bool GuideStar::AutoFind(const usImage& image, int extraEdgeAllowance, int searc
     //       this pass will reject saturated and nearly-saturated stars
     //   pass 2: find brightest non-saturated star with SNR >= MinSNR
     //   pass 3: find brightest star, even if saturated or below MinSNR
+    //   every pass rejects elongated candidates when the eccentricity filter is enabled
 
     for (int pass = 1; pass <= 3; pass++)
     {
@@ -1073,6 +1104,9 @@ bool GuideStar::AutoFind(const usImage& image, int extraEdgeAllowance, int searc
                      pCamera->GetSaturationADU(), FIND_LOGGING_VERBOSE);
             if (tmp.WasFound())
             {
+                if (tooElongated(tmp, *it))
+                    continue;
+
                 if (pass == 1)
                 {
                     if (tmp.PeakVal > sat_thresh)

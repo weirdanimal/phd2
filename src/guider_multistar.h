@@ -65,10 +65,13 @@ public:
     wxCheckBox *m_pUseMultiStars;
     wxSpinCtrlDouble *m_MinSNR;
     wxSpinCtrlDouble *m_MaxHFD;
+    wxCheckBox *m_pEnableMaxEccentricity;
+    wxSpinCtrlDouble *m_MaxEccentricity;
 
     virtual void LoadValues();
     virtual void UnloadValues();
     void OnStarMassEnableChecked(wxCommandEvent& event);
+    void OnMaxEccentricityEnableChecked(wxCommandEvent& event);
     void OnMultiStarChecked(wxCommandEvent& evt);
 };
 

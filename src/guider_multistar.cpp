@@ -1461,6 +1461,32 @@ GuiderMultiStarConfigDialogCtrlSet::GuiderMultiStarConfigDialogCtrlSet(wxWindow 
           "This setting applies to both the primary guide star and candidate secondary stars in multi-star guiding. "
           "If this constraint cannot be met, a saturated or near-saturated star may be selected."));
 
+    wxBoxSizer *pEcc = new wxBoxSizer(wxHORIZONTAL);
+    m_pEnableMaxEccentricity =
+        new wxCheckBox(GetParentWindow(AD_szStarTracking), STAR_ECC_ENABLE, _("Reject elongated stars in AutoFind"));
+    m_pEnableMaxEccentricity->SetToolTip(
+        _("Check to make star auto-selection skip candidates that are too elongated to be stars, such as galaxies. "
+          "Only affects which stars are selected; guiding on an already selected star is not affected."));
+    GetParentWindow(AD_szStarTracking)
+        ->Bind(wxEVT_COMMAND_CHECKBOX_CLICKED, &GuiderMultiStarConfigDialogCtrlSet::OnMaxEccentricityEnableChecked, this,
+               STAR_ECC_ENABLE);
+    width = StringWidth(_T("0.000"));
+    m_MaxEccentricity = pFrame->MakeSpinCtrlDouble(GetParentWindow(AD_szStarTracking), wxID_ANY, wxEmptyString,
+                                                   wxDefaultPosition, wxSize(width, -1), wxSP_ARROW_KEYS,
+                                                   Guider::GetAFMaxStarEccentricityMin(), Guider::GetAFMaxStarEccentricityMax(),
+                                                   Guider::GetAFMaxStarEccentricityDefault(), 0.05, _T("MaxEccentricity"));
+    m_MaxEccentricity->SetDigits(2);
+    wxSizer *pMaxEcc = MakeLabeledControl(
+        AD_szStarTracking, _("Max eccentricity"), m_MaxEccentricity,
+        _("The largest eccentricity a candidate may have and still be auto-selected as a guide star. "
+          "0 is perfectly round; 0.5 is about 1.15 times longer than wide, 0.8 about 1.7 times, 0.9 about 2.3 times. "
+          "Use a lower value to reject more elongated objects, a higher value if real stars are being rejected because of "
+          "trailing or optical aberrations. The eccentricity of each candidate is written to the debug log. "
+          "Valid range is 0.50-0.95, default is 0.80. If 'Reject elongated stars in AutoFind' is not checked then this "
+          "setting is ignored."));
+    pEcc->Add(m_pEnableMaxEccentricity, wxSizerFlags(0).Border(wxTOP, 3));
+    pEcc->Add(pMaxEcc, wxSizerFlags(0).Border(wxLEFT, 15));
+
     wxFlexGridSizer *pTrackingParams = new wxFlexGridSizer(3, 2, 8, 15);
     pTrackingParams->Add(pSearchRegion, wxSizerFlags(0).Border(wxTOP, 12));
     pTrackingParams->Add(pStarMass, wxSizerFlags(0).Border(wxLEFT, 75));
@@ -1470,6 +1496,7 @@ GuiderMultiStarConfigDialogCtrlSet::GuiderMultiStarConfigDialogCtrlSet(wxWindow 
     pTrackingParams->Add(m_pUseMultiStars, wxSizerFlags(0).Border(wxLEFT, 75));
     pTrackingParams->Add(m_pBeepForLostStarCtrl, wxSizerFlags().Border(wxTOP, 3));
     pTrackingParams->Add(dsamp, wxSizerFlags().Border(wxTOP, 3).Right());
+    pTrackingParams->Add(pEcc, wxSizerFlags().Border(wxTOP, 3));
 
     AddGroup(CtrlMap, AD_szStarTracking, pTrackingParams);
 }
@@ -1487,6 +1514,10 @@ void GuiderMultiStarConfigDialogCtrlSet::LoadValues()
     m_MinSNR->SetValue(m_pGuiderMultiStar->GetAFMinStarSNR());
     m_MaxHFD->SetValue(m_pGuiderMultiStar->GetMaxStarHFD());
     m_autoSelDownsample->SetSelection(m_pGuiderMultiStar->GetAutoSelDownsample());
+    bool eccEnabled = m_pGuiderMultiStar->GetAFMaxStarEccentricityEnabled();
+    m_pEnableMaxEccentricity->SetValue(eccEnabled);
+    m_MaxEccentricity->Enable(eccEnabled);
+    m_MaxEccentricity->SetValue(m_pGuiderMultiStar->GetAFMaxStarEccentricity());
     m_pBeepForLostStarCtrl->SetValue(pFrame->GetBeepForLostStar());
     m_pUseMultiStars->SetValue(m_pGuiderMultiStar->GetMultiStarMode());
     GuiderConfigDialogCtrlSet::LoadValues();
@@ -1502,6 +1533,8 @@ void GuiderMultiStarConfigDialogCtrlSet::UnloadValues()
     m_pGuiderMultiStar->SetMaxStarHFD(wxMax(m_MaxHFD->GetValue(), min_hfd + 2.0));
     m_pGuiderMultiStar->SetAFMinStarSNR(m_MinSNR->GetValue());
     m_pGuiderMultiStar->SetAutoSelDownsample(m_autoSelDownsample->GetSelection());
+    m_pGuiderMultiStar->SetAFMaxStarEccentricityEnabled(m_pEnableMaxEccentricity->GetValue());
+    m_pGuiderMultiStar->SetAFMaxStarEccentricity(m_MaxEccentricity->GetValue());
     if (m_pBeepForLostStarCtrl->GetValue() != pFrame->GetBeepForLostStar())
         pFrame->SetBeepForLostStar(m_pBeepForLostStarCtrl->GetValue());
     m_pGuiderMultiStar->SetMultiStarMode(m_pUseMultiStars->GetValue());
@@ -1512,4 +1545,9 @@ void GuiderMultiStarConfigDialogCtrlSet::OnMultiStarChecked(wxCommandEvent& evt)
 void GuiderMultiStarConfigDialogCtrlSet::OnStarMassEnableChecked(wxCommandEvent& event)
 {
     m_pMassChangeThreshold->Enable(event.IsChecked());
+}
+
+void GuiderMultiStarConfigDialogCtrlSet::OnMaxEccentricityEnableChecked(wxCommandEvent& event)
+{
+    m_MaxEccentricity->Enable(event.IsChecked());
 }
