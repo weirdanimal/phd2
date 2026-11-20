@@ -114,7 +114,8 @@ jobs:
           cd ${{ matrix.build_dir }}
           sed -e "s/@VERSION@/$V/g" ../phd2-${{ matrix.arch }}.iss.in > phd2.iss
           sed -e "s/@VERSION@/$V/g" ../README-PHD2.txt.in > README-PHD2.txt
-          "$ISCC" phd2.iss /F"phd2${SUFFIX}-${V}-autofind-eccentricity-installer"
+          # stop Git Bash from rewriting the /F switch into a file path
+          MSYS_NO_PATHCONV=1 "$ISCC" phd2.iss "/Fphd2${SUFFIX}-${V}-autofind-eccentricity-installer"
 
       - name: Upload installer
         uses: actions/upload-artifact@v4
