@@ -1,0 +1,131 @@
+name: Windows Build
+
+# Builds PHD2 for Windows (32-bit and 64-bit) and uploads the installers as artifacts.
+# Follows https://github.com/OpenPHDGuiding/phd2/wiki/BuildingPHD2OnWindows and build/build-win.
+
+on:
+  push:
+    branches: [autofind-eccentricity]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Windows ${{ matrix.arch }}
+    runs-on: windows-2022
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x86
+            cmake_arch: Win32
+            wx_platform: Win32
+            build_dir: tmp
+          - arch: x64
+            cmake_arch: x64
+            wx_platform: x64
+            build_dir: tmp64
+    env:
+      WX_VERSION: 3.0.5
+      WXWIN: C:\wxWidgets-3.0.5
+      VCPKG_DEFAULT_BINARY_CACHE: C:\vcpkg-bincache
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Set up MSBuild
+        uses: microsoft/setup-msbuild@v2
+
+      # ---- wxWidgets 3.0.5, static, Debug + Release (cached) ----
+      - name: Restore wxWidgets
+        id: wx-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: C:\wxWidgets-3.0.5
+          key: wx-3.0.5-${{ matrix.arch }}-vs2022-v1
+
+      - name: Build wxWidgets
+        if: steps.wx-cache.outputs.cache-hit != 'true'
+        shell: pwsh
+        run: |
+          Invoke-WebRequest -Uri "https://github.com/wxWidgets/wxWidgets/releases/download/v$env:WX_VERSION/wxWidgets-$env:WX_VERSION.7z" -OutFile wx.7z
+          7z x wx.7z -o"$env:WXWIN" -y | Out-Null
+          Set-Location "$env:WXWIN\build\msw"
+          # let Visual Studio convert the VS2013 solution to the installed toolset, as the wiki describes
+          $devenv = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -latest -property productPath
+          $devenv = $devenv -replace 'devenv\.exe$', 'devenv.com'
+          & $devenv wx_vc12.sln /upgrade
+          foreach ($cfg in 'Debug', 'Release') {
+            msbuild wx_vc12.sln /m /nologo /verbosity:minimal "/p:Configuration=$cfg" "/p:Platform=${{ matrix.wx_platform }}"
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          }
+
+      - name: Save wxWidgets
+        if: steps.wx-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: C:\wxWidgets-3.0.5
+          key: ${{ steps.wx-cache.outputs.cache-primary-key }}
+
+      # ---- configure (fetches vcpkg and builds cfitsio, curl, eigen3, opencv4; binaries cached) ----
+      - name: Restore vcpkg binary cache
+        id: vcpkg-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: C:\vcpkg-bincache
+          key: vcpkg-${{ matrix.arch }}-${{ hashFiles('thirdparty/thirdparty.cmake') }}
+
+      - name: Configure
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path $env:VCPKG_DEFAULT_BINARY_CACHE | Out-Null
+          cmake -Wno-dev -B ${{ matrix.build_dir }} -A ${{ matrix.cmake_arch }}
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Save vcpkg binary cache
+        if: always() && steps.vcpkg-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: C:\vcpkg-bincache
+          key: ${{ steps.vcpkg-cache.outputs.cache-primary-key }}
+
+      # ---- build ----
+      - name: Build INDI client
+        # phd2 does not declare a dependency on the indi external project, so build it first
+        run: cmake --build ${{ matrix.build_dir }} --config Release --target indi -- /m /nologo /verbosity:minimal
+
+      - name: Build PHD2
+        run: cmake --build ${{ matrix.build_dir }} --config Release -- /m /nologo /verbosity:minimal
+
+      # ---- installer (as in build/build-win) ----
+      - name: Build installer
+        shell: bash
+        run: |
+          set -e
+          V=$(perl -ne '
+            /^\s*#\s*define\s+PHDVERSION[^"]+"([^"]*)/ && do { $v = $1; next LINE };
+            /^\s*#\s*define\s+PHDSUBVER[^"]+"([^"]*)/ && do { $s = $1; print "$v$s"; exit }' src/phd.h)
+          SUFFIX=$([ "${{ matrix.arch }}" = x64 ] && echo "-x64" || true)
+          ISCC="/c/Program Files (x86)/Inno Setup 6/ISCC.exe"
+          if [ ! -f "$ISCC" ]; then choco install innosetup --no-progress -y; fi
+          cd ${{ matrix.build_dir }}
+          sed -e "s/@VERSION@/$V/g" ../phd2-${{ matrix.arch }}.iss.in > phd2.iss
+          sed -e "s/@VERSION@/$V/g" ../README-PHD2.txt.in > README-PHD2.txt
+          "$ISCC" phd2.iss /F"phd2${SUFFIX}-${V}-autofind-eccentricity-installer"
+
+      - name: Upload installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: phd2-${{ matrix.arch }}-installer
+          path: ${{ matrix.build_dir }}/phd2*-installer.exe
+          if-no-files-found: error
+
+      - name: Upload program folder
+        uses: actions/upload-artifact@v4
+        with:
+          name: phd2-${{ matrix.arch }}-program-folder
+          path: ${{ matrix.build_dir }}/Release/
+          if-no-files-found: error
